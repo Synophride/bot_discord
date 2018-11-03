@@ -3,10 +3,13 @@ import logging
 import asyncio
 import requests 
 import json
+import setproctitle
 from discord.ext import commands
 
 # permission int = 2048
 
+# Renommage du processus (sera utile lors du script de màj)
+setproctitle.setproctitle('synobot-python')
 
 ## Evaluation du fichier de configuration
 keys = dict()
