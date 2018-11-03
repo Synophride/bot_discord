@@ -2,9 +2,8 @@ import threading
 
 class Thread_bot(threading.Thread):
     def run(self):
-        shell_exec('python3 bot.py')
-
-
+        r = shell_exec('../bot/python3 bot.py')
+        
 # Se mettre dans le bon répertoire
 shell_exec('')
 
