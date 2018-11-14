@@ -137,7 +137,7 @@ def bordi():
 def blsk():
     requete ='https://api.chucknorris.io/jokes/random?category=dev'
     res = requests.get(requete).json()
-    return res['value'].replace('Norris', 'Balabonski').replace('Chuck', 'Thibault') + ' <:blsk:498584036638457857>'
+    return res['value'].replace('Norris', 'Balabonski').replace('Chuck', 'Thibaut') + ' <:blsk:498584036638457857>'
 
 
 ### Renvoie une blague chuck norris au hasard
