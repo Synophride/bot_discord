@@ -74,6 +74,8 @@ commandes_desc = \
 commandes_m1_desc={'duncan thom' : 'Génération de blagues du prof d\'anglais du g2', \
                    'blsk' : 'Découvrez un fait inconnu de la vie de blsk' }
 
+
+
 ## Traduit une variante d'échecs grâce à dico. si pas d'entrée trouvée, renvoie la chaine en paramètre
 def traduction(i):
     if i in dico:
@@ -87,6 +89,9 @@ def status(s):
     else:
         return 'Hors ligne'
 
+pgn_dico={}
+
+pgn_last_puzzle='eugneu on demande la solution alors que y\'a pas de puzzle'
 ##################################################################
 ###
 ###  Fonctions du bot discord
@@ -117,6 +122,36 @@ def chat():
             em = discord.Embed(title = 'Erreur', colour = 0xFF0000)
             em.set_image(url = ('https://http.cat/' + str(res.status_code)))
             return em
+
+def puzzle_solution(channel_id):
+    return "La solution était : " + pgn_dico[channel_id]
+    
+def puzzle_chesscom(channel_id):
+    global pgn_dico
+    requete = 'https://api.chess.com/pub/puzzle/random'
+    em = discord.Embed(title="", colour=0x009000)
+    res = requests.get(requete)
+    if res.status_code == 200:
+        js_result = res.json()
+        pgn_sale = js_result['pgn'].split(']')
+        pgn_propre = pgn_sale[len(pgn_sale)-1].strip().strip('*')
+        pgn_propre_traduit = pgn_propre.replace('R', 'T').replace('N', 'C').replace('B', 'F').replace('K', 'R').replace('Q', 'D')
+
+        titre=js_result['title']
+        if pgn_propre_traduit.startswith('1...'):
+            titre = titre + ' (trait aux noirs)'
+        else :
+            titre = titre + ' (trait aux blancs)'
+        em = discord.Embed(title=titre)
+
+        img_url = js_result['image']
+        pgn_dico[channel_id] = pgn_propre_traduit
+        print(pgn_propre)
+        em.set_image(url = img_url)
+    else :
+        em = discord.Embed(title = 'Erreur', colour = 0xFF0000)
+        em.set_image(url = ('https://http.cat/' + str(res.status_code)))
+    return em
 
 ### même chose que joke
 def thom():
@@ -268,6 +303,7 @@ def help_msg():
             ret.add_field(name=i, value=commandes_desc[i], inline=True)
         return ret
 
+    
 ### affiche message d'aide, avec les commandes spécifiques au serveur m1
 def help_msg_m1():
     ret = help_msg()
@@ -342,5 +378,8 @@ async def on_message(msg):
         await client.send_message(msg.channel, embed=thom())
     elif message.startswith(prefix + 'status'):
         await client.send_message(msg.channel, 'En ligne')
-        
+    elif message.startswith(prefix + 'puzzle'):
+        await client.send_message(msg.channel, embed= puzzle_chesscom(msg.channel.id))
+    elif message.startswith(prefix + 'soluce'):
+        await client.send_message(msg.channel, puzzle_solution(msg.channel.id))
 client.run(oauth_discord)
