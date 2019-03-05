@@ -1,5 +1,6 @@
 import discord
 import logging
+import random
 import asyncio
 import requests 
 import json
@@ -68,12 +69,34 @@ commandes_desc = \
   'chesscom <pseudo chess.com>' : 'Affiche les elos de toutes les variantes jouées sur chess.com du pseudo en paramètre', \
   'breakingbad' : 'Affiche une citation aléatoire de Breaking Bad, ainsi que son auteur', \
   'help' : 'Affiche cette aide', \
+  'qst' : 'Répond à une question fermée', \
+  'choose' : 'Choisit un des choix parmi une liste, où chaque élément est séparé par le caractère |' , \
 }
 
 ## commande spécifiques au serveur m1
 commandes_m1_desc={'duncan thom' : 'Génération de blagues du prof d\'anglais du g2', \
                    'blsk' : 'Découvrez un fait inconnu de la vie de blsk' }
 
+#yes_answers =  ['Je pense que oui', 'Absolument', 'Très probablement', 'Oui.', 'C\'est bien parti pour']
+#no_answers  = ['Peu probable', 'Faut pas rêver', 'Impossible', 'Et la marmotte elle met le chocolat dans le papier alu', 'Non.']
+#idk_answers = ['Essaie plus tard', 'Je sais pas', 'Une chance sur deux', 'Retente', 'bite']
+answ = ['Je pense que oui',
+        'Absolument',
+        'Très probablement',
+        'Oui.',
+        'C\'est bien parti pour',
+        'Peu probable',
+        'Faut pas rêver',
+        'Impossible',
+        'Et la marmotte elle met le chocolat dans le papier alu',
+        'Non.',
+        'Essaie plus tard',
+        'Je sais pas',
+        'Une chance sur deux',
+        'Retente',
+        'bite',
+        'Et mon cul c\'est du poulet ?'
+]
 
 
 ## Traduit une variante d'échecs grâce à dico. si pas d'entrée trouvée, renvoie la chaine en paramètre
@@ -89,14 +112,18 @@ def status(s):
     else:
         return 'Hors ligne'
 
+# contient les pgn des divers puzzle demandés
 pgn_dico={}
 
-pgn_last_puzzle='eugneu on demande la solution alors que y\'a pas de puzzle'
 ##################################################################
 ###
 ###  Fonctions du bot discord
 ###
 ##################################################################
+
+### Commence une partie d'échecs classique
+
+
 
 ### Renvoie un embed contenant une photo de chat au hasard
 def chat():
@@ -302,7 +329,8 @@ def help_msg():
         for i in commandes_desc.keys() :
             ret.add_field(name=i, value=commandes_desc[i], inline=True)
         return ret
-
+def answer():
+    return random.choice(answ)
     
 ### affiche message d'aide, avec les commandes spécifiques au serveur m1
 def help_msg_m1():
@@ -311,8 +339,9 @@ def help_msg_m1():
         ret.add_field(name=i, value = commandes_m1_desc[i], inline=True)
     return ret
 
-
-
+def choose(complet_str):
+    new_str = complet_str.replace(prefix+ 'choose', '')
+    return random.choice(new_str.split('|')).strip()
 #####################################################################
 ### <<main>>
 #####################################################################
@@ -382,4 +411,20 @@ async def on_message(msg):
         await client.send_message(msg.channel, embed= puzzle_chesscom(msg.channel.id))
     elif message.startswith(prefix + 'soluce'):
         await client.send_message(msg.channel, puzzle_solution(msg.channel.id))
+    elif message.startswith(prefix + 'rouletterusse'):
+        nb = random.randint(1,8)
+        message_ = ''
+        if nb == 1 :
+            message_ = 'PAN !'
+        else:
+            message_ = '*clic*'
+        await client.send_message(msg.channel, message_)
+    elif message.startswith('!qst fils de pute'):
+        await client.send_message(msg.channel, 'taggle fils d\'inceste')
+    elif message.startswith(prefix + 'qst '):
+        await client.send_message(msg.channel, answer())
+    elif message.startswith(prefix + 'choose '):
+        await client.send_message(msg.channel, choose(message))
+
+
 client.run(oauth_discord)
