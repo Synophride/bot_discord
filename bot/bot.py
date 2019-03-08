@@ -5,6 +5,8 @@ import asyncio
 import requests 
 import json
 import setproctitle
+import chess_py
+import time
 from discord.ext import commands
 
 # permission int = 2048
@@ -28,13 +30,32 @@ for line in lines:
         keys[key] = val
 fd.close()
 
+
+# Evaluation des fichiers
+current_games_path='current_games.json'
+current_games = json.load(open(current_games_path))
+
+ended_games_path = 'ended_games.json'
+ended_games   = json.load(open(ended_games_path))
+
+challenge_list_path='proposed_challenges.json'
+challenge_list = json.load(open(challenge_list_path))
+
+chessconf_path = 'chessconf.txt'
+chessconf_str  = open(chessconf_path).read()
+nb_id = int(chessconf_str.strip())
+
+# temps max avant d'accepter une partie
+timeout= 3600 * 24 * 2 # deux jours
+
+default_game_timeout = 3600 * 24 * 5 # 5 jours
 ###################################
 # Initialisation des variables
 ###################################
-
 oauth_discord = keys['oauth_discord']
 id_serveur_m1 = keys['id_serveur_m1']
 api_key_chat  = keys['api_key_chat']
+
 
 # préfixe de la commande
 prefix='!'
@@ -42,7 +63,7 @@ prefix='!'
 # utilisé pour les tests de commandes
 test_prefix='$'
 
-client= discord.Client()
+client=discord.Client()
 
 # Traduction des variantes d'échecs
 dico={ 'correspondence' : 'Correspondance', \
@@ -95,9 +116,7 @@ answ = ['Je pense que oui',
         'Une chance sur deux',
         'Retente',
         'bite',
-        'Et mon cul c\'est du poulet ?'
-]
-
+        'Et mon cul c\'est du poulet ?']
 
 ## Traduit une variante d'échecs grâce à dico. si pas d'entrée trouvée, renvoie la chaine en paramètre
 def traduction(i):
@@ -114,15 +133,12 @@ def status(s):
 
 # contient les pgn des divers puzzle demandés
 pgn_dico={}
-
+    
 ##################################################################
 ###
 ###  Fonctions du bot discord
 ###
 ##################################################################
-
-### Commence une partie d'échecs classique
-
 
 
 ### Renvoie un embed contenant une photo de chat au hasard
@@ -173,7 +189,6 @@ def puzzle_chesscom(channel_id):
 
         img_url = js_result['image']
         pgn_dico[channel_id] = pgn_propre_traduit
-        print(pgn_propre)
         em.set_image(url = img_url)
     else :
         em = discord.Embed(title = 'Erreur', colour = 0xFF0000)
@@ -342,6 +357,106 @@ def help_msg_m1():
 def choose(complet_str):
     new_str = complet_str.replace(prefix+ 'choose', '')
     return random.choice(new_str.split('|')).strip()
+
+
+##################################################
+# 
+# Partie jeu d'échecs
+# 
+##################################################
+
+# Met à jour le fichier des propositions de parties
+# supprime aussi les propositions torp vieilles
+def maj_challenge():
+    global challenge_list
+    timestamp = time.time()
+
+    # Enlever les challenges trop vieux 
+    for ident in challenge_list.keys():
+        if challenge_list[ident]['timestamp'] + timeout < timestamp:
+            del challenge_list[ident]
+            
+    f = open(challenge_list_path, "w")
+    json.dump(challenge_list, f)
+    f.close() 
+
+# todo
+def lose_on_time(game_id):
+    global ended_games
+    global current_games
+    pass
+
+def maj_current():
+    timestamp = time.time()
+    for game_id in current_games.keys():
+        if current_games[game_id]['timestamp'] + current_games[game_id]['timeout'] < timestamp :
+            lose_on_time(game_id)       
+    f = open(current_games_path, "w")
+    json.dump(current_games, f)
+    f.close()
+    
+
+def challenge(challenger, challenged, id_server):
+    global nb_id
+    global challenge_list
+    timestamp = time.time()
+    id_challenge = str(nb_id)
+    challenge_list[id_challenge] = dict()
+    challenge_list[id_challenge]['challenged'] = challenged
+    challenge_list[id_challenge]['challenger'] = challenger
+    challenge_list[id_challenge]['server']     = id_server
+    challenge_list[id_challenge]['timestamp']  = timestamp
+    nb_id +=1
+    maj_challenge()
+    return id_challenge
+
+def recv_challenge(challenger, pinged_list, serv_id = 0):
+    print(len(pinged_list))
+    challenged = 0 if len(pinged_list) == 0 else id(pinged_list[0])
+    challenged_str = 'quelqu\'un' if challenged == 0 else pinged_list[0].mention
+    game_id = challenge(challenger, challenged, serv_id)
+    
+    sentence = str(challenger) + ' vient de défier ' + challenged_str + ' durant une partie d\'échecs. Pour accepter, tapez !accept ' + str(game_id)
+    return sentence
+
+# - challenger correct, id correct
+def accept(game_id, id_player):
+    global challenge_list
+    global current_games
+    challenge = challenge_list[game_id]
+    del challenge_list[game_id]
+    maj_challenge()
+    new_game = dict()
+    players = [challenge['challenger'], id_player]
+    random.shuffle(players)
+    new_game['white'] = players[0]
+    new_game['black'] = players[1]
+    new_game['toPlay']= 1
+    new_game['pgn'] = ''
+    new_game['timestamp'] = time.time()
+    new_game['timeout'] = default_game_timeout
+    new_game['prop_draw'] = False
+    current_games[game_id] = new_game
+    maj_current()
+    return game_id
+
+    
+# vérifier que le challenger a le droit de participer
+def recv_accept(game_id, id_challenger):
+    print(game_id, ', ', type(game_id))
+    for i in (challenge_list.keys()):
+        print(i, " / ", type(i))
+    if not (game_id in challenge_list.keys()): 
+        return "Identifiant de la partie non trouvé"
+
+    challenge = challenge_list[game_id]
+    if (challenge['challenged'] == 0 or challenge['challenged'] == id_challenger):
+        id_ = accept(game_id, id_challenger)
+        return "Challenge accepté : \n La partie " + str(id_) + ' opposant ' + \
+            str(current_games[id_]['white']) + ' avec les blancs, et ' + str(current_games[id_]['black']) + ' avec les noirs peut commencer'
+    else:
+        return 'bite'
+         
 #####################################################################
 ### <<main>>
 #####################################################################
@@ -353,6 +468,10 @@ async def on_ready():
 
 @client.event
 async def on_message(msg):
+    global nb_id
+    global current_games
+    global challenge_list
+
     message = msg.content
     msg_ret = ':\n'   
     ## commandes spécifiques au serveur m1
@@ -425,6 +544,30 @@ async def on_message(msg):
         await client.send_message(msg.channel, answer())
     elif message.startswith(prefix + 'choose '):
         await client.send_message(msg.channel, choose(message))
-
-
+        
+    ## Commandes échecs
+    elif message.startswith(prefix + 'challenge'):
+        print("création du challenge ", nb_id)
+        challenge_str = recv_challenge(id(msg.author), msg.mentions) # pê pas des fonctions
+        await client.send_message(msg.channel, challenge_str)
+    elif message.startswith(prefix + 'accept '):
+        id_ = (message.split(' ')[1].strip())
+        msg_= recv_accept(id_, id(msg.author))
+        await client.send_message(msg.channel, msg_)
+    elif message.startswith(prefix + 'reinit_chessconfig'):
+        a = open(current_games_path, 'w')
+        a.write('{}')
+        a.close()
+        b = open(challenge_list_path, 'w')
+        b.write('{}')
+        b.close()
+        c = open(chessconf_path, 'w')
+        c.write('0')
+        c.close()
+        current_games = dict()
+        challenge_list = dict()
+        nb_id = 0        
+        await client.send_message(msg.channel, "fait")
+    
+        
 client.run(oauth_discord)
