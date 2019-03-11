@@ -450,7 +450,7 @@ def accept(game_id, id_player):
     return game_id
 
     
-# vérifier que le challenger a le droit de participer
+
 def recv_accept(game_id, id_challenger):
     print(game_id, ', ', type(game_id))
     for i in (challenge_list.keys()):
@@ -485,6 +485,21 @@ def get_movelist(str_command): # TODO : vérifier que l'id donné est pas n'impo
     game_id  = params[1]
     str_list = str_move_list(game_id)
     return ", ".join(str_list)
+
+            
+# rend un embed
+def show_board(commande):
+    em = discord.Embed(title = 'board img')
+    params = commande.split()
+    if len(params) < 2:
+        em.add_field('erreur', 'Pas d\'id de partie spécifié')
+        return em
+    game_id = params[1] # Todo = vérifier que l'id existe
+    game = fetch_game(game_id)
+    fen = game.fen()
+    addr= "https://backscattering.de/web-boardimage/board.png?fen=" + fen
+    em.set_image(url=addr)
+    return em
     
 
 #####################################################################
@@ -587,6 +602,9 @@ async def on_message(msg):
     elif message.startswith(prefix + 'movelist'):
         answer = get_movelist(message)
         await client.send_message(msg.channel, answer)
+    elif message.startswith(prefix + 'showboard'):
+        em = show_board(message)
+        await client.send_message(msg.channel, embed=em)        
     elif message.startswith(prefix + 'reinit_chessconfig'):
         a = open(current_games_path, 'w')
         a.write('{}')
