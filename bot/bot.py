@@ -5,9 +5,12 @@ import asyncio
 import requests 
 import json
 import setproctitle
-import chess_py
+import chess
 import time
+import chess.pgn as pgn
+import io
 from discord.ext import commands
+
 
 # permission int = 2048
 
@@ -386,6 +389,13 @@ def lose_on_time(game_id):
     global current_games
     pass
 
+def incr_nbid():
+    global nb_id
+    nb_id += 1
+    f = open(chessconf_path, 'w')
+    f.write(str(nb_id))
+    f.close()
+    
 def maj_current():
     timestamp = time.time()
     for game_id in current_games.keys():
@@ -394,10 +404,9 @@ def maj_current():
     f = open(current_games_path, "w")
     json.dump(current_games, f)
     f.close()
-    
+
 
 def challenge(challenger, challenged, id_server):
-    global nb_id
     global challenge_list
     timestamp = time.time()
     id_challenge = str(nb_id)
@@ -406,7 +415,7 @@ def challenge(challenger, challenged, id_server):
     challenge_list[id_challenge]['challenger'] = challenger
     challenge_list[id_challenge]['server']     = id_server
     challenge_list[id_challenge]['timestamp']  = timestamp
-    nb_id +=1
+    incr_nbid()
     maj_challenge()
     return id_challenge
 
@@ -432,7 +441,7 @@ def accept(game_id, id_player):
     new_game['white'] = players[0]
     new_game['black'] = players[1]
     new_game['toPlay']= 1
-    new_game['pgn'] = ''
+    new_game['pgn'] = str(pgn.Game()) # todo : ?
     new_game['timestamp'] = time.time()
     new_game['timeout'] = default_game_timeout
     new_game['prop_draw'] = False
@@ -456,7 +465,28 @@ def recv_accept(game_id, id_challenger):
             str(current_games[id_]['white']) + ' avec les blancs, et ' + str(current_games[id_]['black']) + ' avec les noirs peut commencer'
     else:
         return 'bite'
-         
+
+def fetch_game(game_id):
+    game = current_games[game_id]
+    pgn_string = io.StringIO(game['pgn'])
+    game = pgn.read_game(pgn_string)
+    return game.board()
+
+def str_move_list(game_id):
+    game = fetch_game(game_id)
+    move_list = game.legal_moves
+    str_list  = map((lambda x : game.san(x)), move_list)
+    return str_list
+
+def get_movelist(str_command): # TODO : vérifier que l'id donné est pas n'importe quoi
+    params = str_command.split()
+    if(len(params) < 2):
+        return 'Identifiant de la partie pas donné'
+    game_id  = params[1]
+    str_list = str_move_list(game_id)
+    return ", ".join(str_list)
+    
+
 #####################################################################
 ### <<main>>
 #####################################################################
@@ -551,9 +581,12 @@ async def on_message(msg):
         challenge_str = recv_challenge(id(msg.author), msg.mentions) # pê pas des fonctions
         await client.send_message(msg.channel, challenge_str)
     elif message.startswith(prefix + 'accept '):
-        id_ = (message.split(' ')[1].strip())
-        msg_= recv_accept(id_, id(msg.author))
+        id_  = (message.split(' ')[1].strip())
+        msg_ = recv_accept(id_, id(msg.author))
         await client.send_message(msg.channel, msg_)
+    elif message.startswith(prefix + 'movelist'):
+        answer = get_movelist(message)
+        await client.send_message(msg.channel, answer)
     elif message.startswith(prefix + 'reinit_chessconfig'):
         a = open(current_games_path, 'w')
         a.write('{}')
@@ -566,7 +599,7 @@ async def on_message(msg):
         c.close()
         current_games = dict()
         challenge_list = dict()
-        nb_id = 0        
+        nb_id = 0
         await client.send_message(msg.channel, "fait")
     
         
