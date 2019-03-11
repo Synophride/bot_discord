@@ -369,7 +369,7 @@ def choose(complet_str):
 ##################################################
 
 # Met à jour le fichier des propositions de parties
-# supprime aussi les propositions torp vieilles
+# supprime aussi les propositions trop vieilles
 def maj_challenge():
     global challenge_list
     timestamp = time.time()
@@ -388,14 +388,15 @@ def lose_on_time(game_id):
     global ended_games
     global current_games
     pass
-
+# incrémente nb_id, et le met à jour dans le fichier de config
 def incr_nbid():
     global nb_id
     nb_id += 1
     f = open(chessconf_path, 'w')
     f.write(str(nb_id))
     f.close()
-    
+   
+# Met à jour la liste des parties courantes dans le fichier
 def maj_current():
     timestamp = time.time()
     for game_id in current_games.keys():
@@ -405,7 +406,8 @@ def maj_current():
     json.dump(current_games, f)
     f.close()
 
-
+# Fonction crééant un challenge/une proposition de partie
+# Todo : ajouter la string du challenger
 def challenge(challenger, challenged, id_server):
     global challenge_list
     timestamp = time.time()
@@ -419,10 +421,15 @@ def challenge(challenger, challenged, id_server):
     maj_challenge()
     return id_challenge
 
+# Fonction appellée lors de la proposition d'un challenge via la commande !challenge
 def recv_challenge(challenger, pinged_list, serv_id = 0):
-    print(len(pinged_list))
-    challenged = 0 if len(pinged_list) == 0 else id(pinged_list[0])
-    challenged_str = 'quelqu\'un' if challenged == 0 else pinged_list[0].mention
+    # deux cas : 
+    #  - la personne a spécifié quelqu'un en particulier dans son message = Seule cette personne peut accepter
+    #  - La personne a spécifié personne : Tout le monde peut accepter
+    # Todo : prendre en compte here/everyone
+    # Todo : ajouter la string du challengé (?+discriminant)
+    challenged = 0 if len(pinged_list) == 0 else id(pinged_list[0])  
+    challenged_str = 'quelqu\'un' if challenged == 0 else pinged_list[0].mention 
     game_id = challenge(challenger, challenged, serv_id)
     
     sentence = str(challenger) + ' vient de défier ' + challenged_str + ' durant une partie d\'échecs. Pour accepter, tapez !accept ' + str(game_id)
@@ -441,7 +448,7 @@ def accept(game_id, id_player):
     new_game['white'] = players[0]
     new_game['black'] = players[1]
     new_game['toPlay']= 1
-    new_game['pgn'] = str(pgn.Game()) # todo : ?
+    new_game['pgn'] = str(pgn.Game()) # todo : ajouter les chaines des challengers 
     new_game['timestamp'] = time.time()
     new_game['timeout'] = default_game_timeout
     new_game['prop_draw'] = False
@@ -450,7 +457,6 @@ def accept(game_id, id_player):
     return game_id
 
     
-
 def recv_accept(game_id, id_challenger):
     print(game_id, ', ', type(game_id))
     for i in (challenge_list.keys()):
@@ -464,20 +470,23 @@ def recv_accept(game_id, id_challenger):
         return "Challenge accepté : \n La partie " + str(id_) + ' opposant ' + \
             str(current_games[id_]['white']) + ' avec les blancs, et ' + str(current_games[id_]['black']) + ' avec les noirs peut commencer'
     else:
-        return 'bite'
+        return 'Mauvais challenger : toi pas concerné par ce défi'
 
+# id_partie -> plateau de la partie
 def fetch_game(game_id):
     game = current_games[game_id]
     pgn_string = io.StringIO(game['pgn'])
     game = pgn.read_game(pgn_string)
     return game.board()
 
+# Donne la liste des coups, sous notation algébrique classique
 def str_move_list(game_id):
-    game = fetch_game(game_id)
+    game = fetch_game(game_id) # Todo : vérifier que l'id donné existe 
     move_list = game.legal_moves
     str_list  = map((lambda x : game.san(x)), move_list)
     return str_list
 
+# Fonction appelée lors de l'appel à la commande !movelist
 def get_movelist(str_command): # TODO : vérifier que l'id donné est pas n'importe quoi
     params = str_command.split()
     if(len(params) < 2):
@@ -488,6 +497,7 @@ def get_movelist(str_command): # TODO : vérifier que l'id donné est pas n'impo
 
             
 # rend un embed
+
 def show_board(commande):
     em = discord.Embed(title = 'board img')
     params = commande.split()
@@ -497,7 +507,9 @@ def show_board(commande):
     game_id = params[1] # Todo = vérifier que l'id existe
     game = fetch_game(game_id)
     fen = game.fen()
-    addr= "https://backscattering.de/web-boardimage/board.png?fen=" + fen
+    clean_fen = fen.split()[0]
+    # todo : p-^e ajouter des effets graphiques 
+    addr= "https://backscattering.de/web-boardimage/board.png?fen=" + clean_fen
     em.set_image(url=addr)
     return em
     
