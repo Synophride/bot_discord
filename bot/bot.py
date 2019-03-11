@@ -369,7 +369,7 @@ def choose(complet_str):
 ##################################################
 
 # Met à jour le fichier des propositions de parties
-# supprime aussi les propositions trop vieilles
+# supprime aussi les propositions trop vieilles (proposé il y a plus de <timeout> secondes)
 def maj_challenge():
     global challenge_list
     timestamp = time.time()
@@ -383,12 +383,13 @@ def maj_challenge():
     json.dump(challenge_list, f)
     f.close() 
 
-# todo
+# Todo : Changer le nom de la fonction pour refléter la possibilité des nulles
 def lose_on_time(game_id):
     global ended_games
     global current_games
     pass
-# incrémente nb_id, et le met à jour dans le fichier de config
+
+# incrémente nb_id, et le met à jour dans le fichier de configuration
 def incr_nbid():
     global nb_id
     nb_id += 1
@@ -396,7 +397,7 @@ def incr_nbid():
     f.write(str(nb_id))
     f.close()
    
-# Met à jour la liste des parties courantes dans le fichier
+# Met à jour la liste des parties courantes dans le fichier respectif
 def maj_current():
     timestamp = time.time()
     for game_id in current_games.keys():
@@ -448,7 +449,7 @@ def accept(game_id, id_player):
     new_game['white'] = players[0]
     new_game['black'] = players[1]
     new_game['toPlay']= 1
-    new_game['pgn'] = str(pgn.Game()) # todo : ajouter les chaines des challengers 
+    new_game['pgn'] = str(pgn.Game()) # todo : ajouter les chaines des challengers dans le PGN
     new_game['timestamp'] = time.time()
     new_game['timeout'] = default_game_timeout
     new_game['prop_draw'] = False
@@ -481,7 +482,7 @@ def fetch_game(game_id):
 
 # Donne la liste des coups, sous notation algébrique classique
 def str_move_list(game_id):
-    game = fetch_game(game_id) # Todo : vérifier que l'id donné existe 
+    game = fetch_game(game_id) # TODO : vérifier que l'id donné existe 
     move_list = game.legal_moves
     str_list  = map((lambda x : game.san(x)), move_list)
     return str_list
@@ -497,7 +498,6 @@ def get_movelist(str_command): # TODO : vérifier que l'id donné est pas n'impo
 
             
 # rend un embed
-
 def show_board(commande):
     em = discord.Embed(title = 'board img')
     params = commande.split()
@@ -508,7 +508,7 @@ def show_board(commande):
     game = fetch_game(game_id)
     fen = game.fen()
     clean_fen = fen.split()[0]
-    # todo : p-^e ajouter des effets graphiques 
+    # todo : p-^e ajouter des effets graphiques (dernier coup, échec...)
     addr= "https://backscattering.de/web-boardimage/board.png?fen=" + clean_fen
     em.set_image(url=addr)
     return em
