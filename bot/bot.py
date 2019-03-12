@@ -9,6 +9,7 @@ import chess
 import time
 import chess.pgn as pgn
 import io
+import datetime
 from discord.ext import commands
 
 
@@ -50,8 +51,8 @@ nb_id = int(chessconf_str.strip())
 
 # temps max avant d'accepter une partie
 timeout= 3600 * 24 * 2 # deux jours
-
 default_game_timeout = 3600 * 24 * 5 # 5 jours
+
 ###################################
 # Initialisation des variables
 ###################################
@@ -127,7 +128,7 @@ def traduction(i):
         return dico[i]
     else:
         return i
-   
+
 def status(s):
     if s :
         return 'En ligne'
@@ -136,13 +137,12 @@ def status(s):
 
 # contient les pgn des divers puzzle demandés
 pgn_dico={}
-    
+
 ##################################################################
 ###
 ###  Fonctions du bot discord
 ###
 ##################################################################
-
 
 ### Renvoie un embed contenant une photo de chat au hasard
 def chat():
@@ -303,13 +303,15 @@ def bbad():
     embed= discord.Embed(title = txt, description=auth, colour=0xFFF000)
     return embed
     
-
-### Renvoie l'elo lichess dans un embed. Buggué jusqu'à que j'aie plus la flemme 
+### Renvoie l'elo lichess dans un embed. 
 def embedded_lichess(usrname):
     requete = 'https://lichess.org/api/user/' + usrname
     res = requests.get(requete)
-    
-    ### TODO : Vérification que la requête est légale
+    if res.status_code != 200:
+        em = discord.Embed(title = 'Erreur', colour = 0xFF0000)
+        em.set_image(url = ('https://http.cat/' + str(res.status_code)))
+        return em
+
     json_res = res.json()
     parties = json_res['perfs']
     embed = discord.Embed(title = usrname + ' stats on Lichess', description = '', colour=0xFF0000)
@@ -383,12 +385,6 @@ def maj_challenge():
     json.dump(challenge_list, f)
     f.close() 
 
-# Todo : Changer le nom de la fonction pour refléter la possibilité des nulles
-def lose_on_time(game_id):
-    global ended_games
-    global current_games
-    pass
-
 # incrémente nb_id, et le met à jour dans le fichier de configuration
 def incr_nbid():
     global nb_id
@@ -396,26 +392,31 @@ def incr_nbid():
     f = open(chessconf_path, 'w')
     f.write(str(nb_id))
     f.close()
-   
+
+def maj_ended():
+    f = open(ended_games_path, 'w')
+    json.dump(ended_games, f)
+    f.close()
+
 # Met à jour la liste des parties courantes dans le fichier respectif
 def maj_current():
     timestamp = time.time()
-    for game_id in current_games.keys():
-        if current_games[game_id]['timestamp'] + current_games[game_id]['timeout'] < timestamp :
-            lose_on_time(game_id)       
+#    for game_id in current_games.keys():
+#       if current_games[game_id]['timestamp'] + current_games[game_id]['timeout'] < timestamp :
+#           lose_on_time(game_id)       
     f = open(current_games_path, "w")
     json.dump(current_games, f)
     f.close()
 
 # Fonction crééant un challenge/une proposition de partie
-# Todo : ajouter la string du challenger
 def challenge(challenger, challenged, id_server):
     global challenge_list
     timestamp = time.time()
     id_challenge = str(nb_id)
     challenge_list[id_challenge] = dict()
+    challenge_list[id_challenge]['str_challenger'] = challenger.name
     challenge_list[id_challenge]['challenged'] = challenged
-    challenge_list[id_challenge]['challenger'] = challenger
+    challenge_list[id_challenge]['challenger'] = id(challenger)
     challenge_list[id_challenge]['server']     = id_server
     challenge_list[id_challenge]['timestamp']  = timestamp
     incr_nbid()
@@ -423,53 +424,73 @@ def challenge(challenger, challenged, id_server):
     return id_challenge
 
 # Fonction appellée lors de la proposition d'un challenge via la commande !challenge
+# deux cas : 
+#  - la personne a spécifié quelqu'un en particulier dans son message = Seule cette personne peut accepter
+#  - La personne a spécifié personne : Tout le monde peut accepter
+# Todo : prendre en compte here/everyone
 def recv_challenge(challenger, pinged_list, serv_id = 0):
-    # deux cas : 
-    #  - la personne a spécifié quelqu'un en particulier dans son message = Seule cette personne peut accepter
-    #  - La personne a spécifié personne : Tout le monde peut accepter
-    # Todo : prendre en compte here/everyone
-    # Todo : ajouter la string du challengé (?+discriminant)
-    challenged = 0 if len(pinged_list) == 0 else id(pinged_list[0])  
-    challenged_str = 'quelqu\'un' if challenged == 0 else pinged_list[0].mention 
+    challenged = 0 if len(pinged_list) == 0 else id(pinged_list[0]) 
+    challenged_str = 'quelqu\'un' if challenged == 0 else pinged_list[0].mention
     game_id = challenge(challenger, challenged, serv_id)
-    
-    sentence = str(challenger) + ' vient de défier ' + challenged_str + ' durant une partie d\'échecs. Pour accepter, tapez !accept ' + str(game_id)
+    sentence = challenger.name + ' vient de défier ' + challenged_str + ' durant une partie d\'échecs. Pour accepter, tapez !accept ' + str(game_id)
     return sentence
 
 # - challenger correct, id correct
-def accept(game_id, id_player):
+def accept(game_id, id_player, str_j2):
     global challenge_list
     global current_games
+
+    # mise à jour des challenge : Suppression des vieux challenges
     challenge = challenge_list[game_id]
     del challenge_list[game_id]
     maj_challenge()
+
+    str_white = challenge['str_challenger']
+    str_black = str_j2
+    
+    id_white = challenge['challenger']
+    id_black = id_player
+
+    # une chance sur deux d'inverser les rôles
+    if(random.random() > 0.5):
+        str_ = str_white
+        str_white = str_black
+        str_black = str_
+
+        id_ = id_white
+        id_white = id_black
+        id_black = id_
+
+    game = pgn.Game()
+
     new_game = dict()
-    players = [challenge['challenger'], id_player]
-    random.shuffle(players)
-    new_game['white'] = players[0]
-    new_game['black'] = players[1]
+    new_game['white'] = id_white
+    new_game['black'] = id_black
+    new_game["white_str"] = str_white
+    new_game["black_str"] = str_black
     new_game['toPlay']= 1
-    new_game['pgn'] = str(pgn.Game()) # todo : ajouter les chaines des challengers dans le PGN
+    new_game['pgn'] = str(game)
     new_game['timestamp'] = time.time()
     new_game['timeout'] = default_game_timeout
     new_game['prop_draw'] = False
     current_games[game_id] = new_game
     maj_current()
-    return game_id
+    return (str_white, str_black)
 
     
-def recv_accept(game_id, id_challenger):
-    print(game_id, ', ', type(game_id))
-    for i in (challenge_list.keys()):
-        print(i, " / ", type(i))
+def recv_accept(game_id, challenger):
     if not (game_id in challenge_list.keys()): 
         return "Identifiant de la partie non trouvé"
 
-    challenge = challenge_list[game_id]
+    challenge = challenge_list[game_id]    
+    id_challenger = id(challenger)
+    str_challenger= challenger.name
+    
     if (challenge['challenged'] == 0 or challenge['challenged'] == id_challenger):
-        id_ = accept(game_id, id_challenger)
-        return "Challenge accepté : \n La partie " + str(id_) + ' opposant ' + \
-            str(current_games[id_]['white']) + ' avec les blancs, et ' + str(current_games[id_]['black']) + ' avec les noirs peut commencer'
+        (str_white, str_black) = accept(game_id, id_challenger, str_challenger)
+
+        return "Challenge accepté : \n La partie " + str(game_id) + ' opposant ' + \
+            str_white + ' avec les blancs, et ' + str_black + ' avec les noirs peut commencer'
     else:
         return 'Mauvais challenger : toi pas concerné par ce défi'
 
@@ -478,21 +499,28 @@ def fetch_game(game_id):
     game = current_games[game_id]
     pgn_string = io.StringIO(game['pgn'])
     game = pgn.read_game(pgn_string)
-    return game.board()
+    board = game.board()
+    for move in game.mainline_moves():
+        board.push(move)
+    return board
 
 # Donne la liste des coups, sous notation algébrique classique
-def str_move_list(game_id):
-    game = fetch_game(game_id) # TODO : vérifier que l'id donné existe 
+def str_move_list(game_id):    
+    game = fetch_game(game_id) 
     move_list = game.legal_moves
     str_list  = map((lambda x : game.san(x)), move_list)
     return str_list
 
 # Fonction appelée lors de l'appel à la commande !movelist
-def get_movelist(str_command): # TODO : vérifier que l'id donné est pas n'importe quoi
+def get_movelist(str_command):
     params = str_command.split()
     if(len(params) < 2):
         return 'Identifiant de la partie pas donné'
     game_id  = params[1]
+    
+    if not game_id in current_games.keys():
+        return "La partie donnée en param n'existe pas"
+
     str_list = str_move_list(game_id)
     return ", ".join(str_list)
 
@@ -502,17 +530,82 @@ def show_board(commande):
     em = discord.Embed(title = 'board img')
     params = commande.split()
     if len(params) < 2:
-        em.add_field('erreur', 'Pas d\'id de partie spécifié')
+        em.add_field(name='erreur', value='Pas d\'id de partie spécifié')
         return em
-    game_id = params[1] # Todo = vérifier que l'id existe
+    game_id = params[1]
+    if not game_id in current_games.keys():
+        em.add_field(name="erreur", value='id de partie incorrect')
+        return em
     game = fetch_game(game_id)
     fen = game.fen()
-    clean_fen = fen.split()[0]
-    # todo : p-^e ajouter des effets graphiques (dernier coup, échec...)
-    addr= "https://backscattering.de/web-boardimage/board.png?fen=" + clean_fen
+    clean_fen = fen.split()[0].strip()
+    # todo : p-^e ajouter des effets graphiques (dernier coup, échec, option pour afficher du pdv des noirs...)
+    addr="https://backscattering.de/web-boardimage/board.png?fen=" + clean_fen
     em.set_image(url=addr)
     return em
+
+def end_game(board, game_id, pgngame):
+    global current_games
+    global ended_games
+    if board.is_game_over():
+        # mise à jour
+        res = board.result()
+        new_pgn_game = pgngame.from_board(board)
+        new_pgn_game.headers['Result'] = res
+        game = current_games[game_id]
+        sentence = "Fin de la partie: " + game["white_str"] + ' ' + res + ' ' + \
+                game["black_str"]
+        
+        del current_games[game_id]
+
+        finished_game = dict()
+        finished_game["white"] = game["white"]
+        finished_game["black"] = game["black"]
+        finished_game['res']   = res
+        finished_game['pgn']   = game['pgn']
+
+        ended_games[game_id] = finished_game
+        maj_ended()
+        maj_current()
+        return sentence
+    else:
+        return None
     
+def play(message, id_messager):
+    global current_games
+    parts = message.split(' ')
+    if len(parts) <  3:
+        return 'message pas correct'
+    
+    # Tovérifier : seul le bon joueur peut jouer
+    game_id = parts[1]
+    move = parts[2]
+    game = current_games[game_id]   
+    pgn_stringIO = io.StringIO(game['pgn'])
+    pgn_game = pgn.read_game(pgn_stringIO)
+    board = pgn_game.board()
+    for m in pgn_game.mainline_moves():
+        board.push(m)
+
+    id_player_to_move = game["white"]
+    if board.turn == chess.WHITE:
+        id_player_to_move = game["black"]
+    if(id_messager != id_player_to_move):
+        return "Pas le bon joueur qui joue"
+    try:
+        move_played = board.push_san(move)
+        new_pgn_game = pgn_game.from_board(board)
+        new_pgn = new_pgn_game.accept(pgn.StringExporter(headers=True))
+        current_games[game_id]['pgn'] = new_pgn
+        s = end_game(board, game_id, pgn_game)
+        if (s != None):
+            return s
+        
+        maj_current()
+        return "le coup semble avoir été joué"
+    except ValueError:
+        return ("Coup invalide : <" + move + ">. !movelist pour avoir la liste des coups")
+
 
 #####################################################################
 ### <<main>>
@@ -605,18 +698,21 @@ async def on_message(msg):
     ## Commandes échecs
     elif message.startswith(prefix + 'challenge'):
         print("création du challenge ", nb_id)
-        challenge_str = recv_challenge(id(msg.author), msg.mentions) # pê pas des fonctions
+        challenge_str = recv_challenge(msg.author, msg.mentions) # pê pas des fonctions
         await client.send_message(msg.channel, challenge_str)
     elif message.startswith(prefix + 'accept '):
         id_  = (message.split(' ')[1].strip())
-        msg_ = recv_accept(id_, id(msg.author))
+        msg_ = recv_accept(id_, msg.author)
         await client.send_message(msg.channel, msg_)
     elif message.startswith(prefix + 'movelist'):
         answer = get_movelist(message)
         await client.send_message(msg.channel, answer)
     elif message.startswith(prefix + 'showboard'):
         em = show_board(message)
-        await client.send_message(msg.channel, embed=em)        
+        await client.send_message(msg.channel, embed=em)
+    elif message.startswith(prefix + 'move '):
+        m=play(message, id(msg.author))
+        await client.send_message(msg.channel, m)
     elif message.startswith(prefix + 'reinit_chessconfig'):
         a = open(current_games_path, 'w')
         a.write('{}')
@@ -631,6 +727,7 @@ async def on_message(msg):
         challenge_list = dict()
         nb_id = 0
         await client.send_message(msg.channel, "fait")
-    
+    elif message.startswith(prefix + 'getid'):
+        await client.send_message(msg.channel, id(msg.author))
         
 client.run(oauth_discord)
