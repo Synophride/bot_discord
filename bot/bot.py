@@ -12,9 +12,7 @@ import io
 import datetime
 from discord.ext import commands
 
-
 # permission int = 2048
-
 # Renommage du processus (sera utile lors du script de màj)
 setproctitle.setproctitle('synobot-python')
 
@@ -345,10 +343,11 @@ def mk_embed():
 
 ### affiche message d'aide
 def help_msg():
-        ret = discord.Embed(title='Synobot', description='Utilisation : <' + prefix + '[commande] (paramètres)>'  )
-        for i in commandes_desc.keys() :
-            ret.add_field(name=i, value=commandes_desc[i], inline=True)
-        return ret
+    ret = discord.Embed(title='Synobot', description='Utilisation : <' + prefix + '[commande] (paramètres)>'  )
+    for i in commandes_desc.keys() :
+        ret.add_field(name=i, value=commandes_desc[i], inline=True)
+    return ret
+
 def answer():
     return random.choice(answ)
     
@@ -362,7 +361,6 @@ def help_msg_m1():
 def choose(complet_str):
     new_str = complet_str.replace(prefix+ 'choose', '')
     return random.choice(new_str.split('|')).strip()
-
 
 ##################################################
 # 
@@ -462,7 +460,6 @@ def accept(game_id, id_player, str_j2):
         id_black = id_
 
     game = pgn.Game()
-
     new_game = dict()
     new_game['white'] = id_white
     new_game['black'] = id_black
@@ -523,7 +520,6 @@ def get_movelist(str_command):
 
     str_list = str_move_list(game_id)
     return ", ".join(str_list)
-
             
 # rend un embed
 def show_board(commande):
@@ -577,7 +573,6 @@ def play(message, id_messager):
     if len(parts) <  3:
         return 'message pas correct'
     
-    # Tovérifier : seul le bon joueur peut jouer
     game_id = parts[1]
     move = parts[2]
     game = current_games[game_id]   
@@ -588,7 +583,7 @@ def play(message, id_messager):
         board.push(m)
 
     id_player_to_move = game["white"]
-    if board.turn == chess.WHITE:
+    if board.turn == chess.BLACK:
         id_player_to_move = game["black"]
     if(id_messager != id_player_to_move):
         return "Pas le bon joueur qui joue"
@@ -606,26 +601,28 @@ def play(message, id_messager):
     except ValueError:
         return ("Coup invalide : <" + move + ">. !movelist pour avoir la liste des coups")
 
-
-#####################################################################
+#########################################
+###
 ### <<main>>
-#####################################################################
+###
+#########################################
 
 @client.event
 async def on_ready():
-    print('Logged in as')
-    print(client.user.name)
-
+    print('Serveurs : ')
+    for i in client.servers:
+        print("\t", i)
+    
 @client.event
 async def on_message(msg):
     global nb_id
     global current_games
     global challenge_list
-
-    message = msg.content
-    msg_ret = ':\n'   
-    ## commandes spécifiques au serveur m1
     id_s = msg.server.id
+    message = msg.content
+    for x in (msg.embeds):
+        print(x)
+    msg_ret = '\n'
     if id_s == id_serveur_m1:
         if message.startswith(prefix + 'duncan thom'):
             await client.send_message(msg.channel, embed=thom())
@@ -638,7 +635,7 @@ async def on_message(msg):
             return
     elif message.startswith(prefix + 'help'):
         await client.send_message(msg.channel, embed=help_msg())
-        
+    
     if message.startswith(prefix + "lichessall"):
         arglist = message.split(' ')
         for i in range(1, len(arglist)):
@@ -705,8 +702,8 @@ async def on_message(msg):
         msg_ = recv_accept(id_, msg.author)
         await client.send_message(msg.channel, msg_)
     elif message.startswith(prefix + 'movelist'):
-        answer = get_movelist(message)
-        await client.send_message(msg.channel, answer)
+        rep = get_movelist(message)
+        await client.send_message(msg.channel, rep)
     elif message.startswith(prefix + 'showboard'):
         em = show_board(message)
         await client.send_message(msg.channel, embed=em)
@@ -729,5 +726,9 @@ async def on_message(msg):
         await client.send_message(msg.channel, "fait")
     elif message.startswith(prefix + 'getid'):
         await client.send_message(msg.channel, id(msg.author))
+    elif message.startswith(prefix + 'FUCK'):
+        truc_to_fuck = message.split(' ', 1)[1]
+        for i in range(15):
+            await client.send_message(msg.channel, 'FUCK ' + truc_to_fuck)
         
 client.run(oauth_discord)
