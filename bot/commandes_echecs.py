@@ -1,11 +1,13 @@
+import io
 import discord
 import asyncio
 import logging
 import requests
 import random
 import chess
+from ast import literal_eval as make_tuple
 import chess.pgn as pgn
-
+import psycopg2
 
 log_path = './echecs.log'
 def write_log(message):
@@ -27,9 +29,23 @@ dico={ 'correspondence' : 'Correspondance', \
        'chess960' : 'Échecs 960' ,\
 }
 
+password = None
+
+def init(keys):
+    global password
+    password=keys['password']
+
+
+def status(b):
+    if b:
+        return "En ligne"
+    else:
+        return "Hors ligne"
+
+params_db = {'dbname' : 'synobot_db', 'user' : "synobot", 'password' : password}
+
 # contient les pgn des divers puzzle demandés
 pgn_dico={}
-
 
 # Traduit une variante d'échecs grâce à dico. si pas d'entrée trouvée, renvoie la chaine en paramètre
 def traduction(i):
@@ -37,17 +53,14 @@ def traduction(i):
         return dico[i]
     else:
         return i
-    
 
-async def puzzle_solution(msg, client):
+async def puzzle_solution(msg):
     channel_id = (msg.channel.id)
-    await client.send_message(msg.channel , "La solution était : " + pgn_dico[channel_id] )
-    return
+    await msg.channel.send( "La solution était : " + pgn_dico[channel_id] )
 
 # TODO : mettre à jour 
-async def puzzle_chesscom(msg, client):
+async def puzzle_chesscom(msg):
     global pgn_dico
-    
     channel_id = msg.channel.id
     requete = 'https://api.chess.com/pub/puzzle/random'
     em = discord.Embed(title="", colour=0x009000)
@@ -66,24 +79,23 @@ async def puzzle_chesscom(msg, client):
         em = discord.Embed(title=titre)
 
         img_url = js_result['image']
+        print("url image\t", img_url)
         pgn_dico[channel_id] = pgn_propre_traduit
         em.set_image(url = img_url)
     else :
         em = discord.Embed(title = 'Erreur', colour = 0xFF0000)
         em.set_image(url = ('https://http.cat/' + str(res.status_code)))
-    return em
-
-
+    await msg.channel.send(embed = em)
 
 ### Affiche l'elo + le nombre de parties de l'utilisateur en paramètre, en classique à bullet + tactiques
-async def lichess(msg, client):
+async def lichess(msg):
     username = msg.content.split(' ')[1]
     requete = 'https://lichess.org/api/user/' + username
     res = requests.get(requete)
     message_retour = ''
     if res.status_code != 200:
         message_retour = 'Erreur : a priori, utilisateur inexistant. Code =' + str(res.status_code) + ')'
-        await client.send_message(msg.channel, message_retour)
+        await msg.channel.send(message_retour)
     else: # Classique, Bullet, Blitz, Rapide
         json_data = res.json()
         message_retour = '**__' + json_data['username'] + ':__ ** (' + status(json_data['online']) + ')\n'        
@@ -106,12 +118,10 @@ async def lichess(msg, client):
             # Tactiques
             if 'puzzle' in parties:
                 message_retour = message_retour + '\t**Tactiques :**' + str(parties['puzzle']['rating']) + ', ' +  str(parties['puzzle']['games']) + ' \n'
-    await client.send_message(msg.channel, message_retour)
-
-
+    await msg.channel.send(message_retour)
 
 ### Affiche elo du pseudo en param sur chesscom 
-async def chesscomelo(msg, client):
+async def chesscomelo(msg):
     usrname = msg.content.split(' ', 1)[1]
     requete = 'https://api.chess.com/pub/player/' + usrname + '/stats'
     resultat = requests.get(requete)
@@ -127,11 +137,10 @@ async def chesscomelo(msg, client):
             nlose= res[i]['record']['loss']
             ngames=nwin + ndraw + nlose
         message_retour = message_retour + '\n  **' + traduction(i) + ':** ' + elo + ' elo , ' + str(ngames) + ' parties (' + str(nwin) + '-' + str(ndraw) + '-' + str(nlose) + ')'
-    await client.send_message(msg.channel, message_retour)
+    await msg.channel.send(message_retour)
 
-    
 ### Renvoie l'elo lichess dans un embed. 
-async def embedded_lichess(msg, client):
+async def embedded_lichess(msg):
     usrname = msg.content.split(' ')[1]
     requete = 'https://lichess.org/api/user/' + usrname
     res = requests.get(requete)
@@ -163,10 +172,7 @@ async def embedded_lichess(msg, client):
         embed.add_field(name='Tactiques', \
                         value=str(parties['puzzle']['rating']) + ', ' +  str(parties['puzzle']['games']) + ' parties', \
         inline=False)
-    await client.send_message(msg.channel, embed = embed)
-
-
-
+    await msg.channel.send(embed = embed)
 
 ####################
 ### Partie d'échecs
@@ -412,20 +418,20 @@ async def play(message, id_messager):
 ## Parties d'échecs avec base de données #
 ##########################################
 
-import psycopg2
-async def challenge_bd(msg, client):
-    id_j1 = msg.author.id
-    id_j2 = ''
+
+async def challenge_bd(msg):
+    id_j1 = "'" + msg.author.id +"'"
+    id_j2 = "''"
     mention = False
     if(len(msg.mentions) == 1):
         mention = true
         id_j2 = msg.mentions[0].id
     elif len(msg.mentions) > 1:
-        await client.send_message(msg.channel, "Impossible, pour l'instant, de ping plusieurs joueurs en même temps")
+        await msg.channel.send("Impossible, pour l'instant, de ping plusieurs joueurs en même temps")
     requete = "INSERT INTO challenges (id_j1, id_j2) VALUES ({0}, {1});".format(id_j1, id_j2)
-
     # Manipulation de la BD
-    conn_desc = psycopg2.connect("dbname=synobot_db user=synobot")
+    #    conn_desc = psycopg2.connect(**params_db)
+    conn_desc = psycopg2.connect(dbname = 'synobot_db', user = 'synobot', password = password)
     curseur = conn_desc.cursor()
     curseur.execute(requete)
     curseur.execute("SELECT currval('seq_challenge');")
@@ -433,47 +439,52 @@ async def challenge_bd(msg, client):
     conn_desc.commit()
     curseur.close()
     conn_desc.close()
-
     str_j1 = str(msg.author)
-    
     str_j2 = "quelqu'un"
-    if id_j2 != '':
+    if len(msg.mentions)>0:
         str_j2 = str(msg.mentions[0])
-    msg = "Le joueur {0} a défié {1} pour une partie d'échecs. Tapez <préfixe du serveur>accept {3} pour accepter et commencer la partie"
-    msg_retour = msg.format(str_j1, str_j2, currval)
+    msg_ = "Le joueur {0} a défié {1} pour une partie d'échecs. Tapez <préfixe du serveur>accept {2} pour accepter et commencer la partie"
+    msg_retour = msg_.format(str_j1, str_j2, currval)
     
-    await client.send_message(msg.channel, msg_retour)
+    await msg.channel.send(msg_retour)
 
 
-async def acceptation_bd(msg, client):
+async def acceptation_bd(msg):
     id_acceptant = msg.author.id
     contents = msg.content.split(' ')
     if(len(contents) ==1):
-        await client.send_message(msg.channel,
-                                  "Erreur : L'identifiant de la partie n'a pas été donné")
+        await msg.channel.send("Erreur : L'identifiant de la partie n'a pas été donné")
         return
     id_partie_acceptee = 0
     try:
         id_partie_acceptee = int(contents[1])
     except ValueError:
         msg_retour = "Erreur : la chaîne {0} n'est pas un identifiant de partie valide"
-        await client.send_message(msg.channel, msg_retour.format(contents[1]))
+        await msg.channel.send(msg_retour.format(contents[1]))
         return
-    cdesc = psycopg2.connect("dbname=synobot_db user=synobot")
+
+    # Manipulation de la BD
+    cdesc = psycopg2.connect(**params_db)
+
     curs = cdesc.cursor()
     
     # chercher dans challenge la partie avec l'identifiant donné + vérifier que l'id acceptant est acceptable
-    modele_req = "SELECT (id_j1, id_j2, id_challenge) FROM challenges WHERE (id_j2={0} OR id_j2 = 0) AND id_challenge = {1};"
+    modele_req = "SELECT (id_j1, id_j2, id_challenge) FROM challenges WHERE (id_j2='{0}' OR id_j2 = '') AND id_challenge = {1};"
     req = modele_req.format(id_acceptant, str(id_partie_acceptee))
 
     curs.execute(req)
-    res_tuple_list = curs.fetchall()
-    if(len(res_tuple_list) == 0):
-        await client.send_message(msg.channel, "Identifiant de la partie non trouvé")
-    elif len(res_tuple_list) > 1 :
-        write_log("acceptation_bd:\t Erreur : Plusieurs lignes retournées lors de la requête" )
-    (idj1, idj2, idpartie) = rest_tuple_list[0]
+    res_tuple = curs.fetchone()
+    if(res_tuple == None):
+        await msg.channel.send("Identifiant de la partie non trouvé")
+        return
+    
+    (idj1, idj2, idpartie) = make_tuple(res_tuple[0])
 
+    print("id_j1", idj1)
+    print("id_j2", idj2)
+    print("idpartie", idpartie)
+    print()
+    print()
     id_white = idj1
     id_black = idj2
     if(random.random() < 0.5):
@@ -482,11 +493,11 @@ async def acceptation_bd(msg, client):
 
     pgn_game = pgn.Game()
 
-    requete_deletion_challenge = "DELETE FROM challenges WHERE id_challege = {0};"
-    requete_ajout_games = "INSERT INTO games (pgn, id_blanc, id_noir, id_partie) VALUES ({0}, {1}, {2}, {3});"
+    requete_deletion_challenge = "DELETE FROM challenges WHERE id_challenge = {0};"
+    requete_ajout_games = "INSERT INTO games (pgn, id_blanc, id_noir, id_partie) VALUES ('{0}', '{1}', '{2}', {3});"
 
     requete_del = requete_deletion_challenge.format(idpartie)
-    requete_ajout = requete_ajout_games(pgn_game, id_white, id_black, idpartie)
+    requete_ajout = requete_ajout_games.format(pgn_game, id_white, id_black, idpartie)
 
     curs.execute(requete_del)
     curs.execute(requete_ajout)
@@ -497,7 +508,7 @@ async def acceptation_bd(msg, client):
     cdesc.close()
 
     message_retour = "La partie opposant {0} avec les blancs, et {1} avec les noirs peut commencer" 
-    await client.send_message(msg.channel, message_retour.format(id_white, id_black))
+    await msg.channel.send(message_retour.format(id_white, id_black))
 
 
 ## TODO : ajouter l'id dans la table archive
@@ -514,56 +525,53 @@ async def fin_de_partie_bd(msg, result, pgn, game_id, id_blanc, id_noir, cursor)
     cursor.execute(req2)
 
     msg_retour = "Fin de la partie. résultat : {0} {1} {2}" 
-    await client.send_message(msg.channel, msg_retour.format(id_blanc, result, id_noir))
+    await msg.channel.send(msg_retour.format(id_blanc, result, id_noir))
 
 
-async def move_bd(msg, client):
+async def move_bd(msg):
     parts = msg.content.split(' ')
     if(len(parts) != 3):
-        await client.send_message(msg.channel, "Erreur dans la lecture des données : mauvais nombre d'arguments")
+        await msg.channel.send("Erreur dans la lecture des données : mauvais nombre d'arguments")
         return
     game_id = 0
     
     try:
         game_id = int(parts[1])
     except ValueError:
-        await client.send_message(msg.channel, "Erreur : Le second argument n'est pas un identifiant valide")
+        await msg.channel.send("Erreur : Le second argument n'est pas un identifiant valide")
         return
     move = parts[2]
     
-    ## Connexion à la bd
-    cdesc = psycopg2.connect("dbname=synobot_db user=synobot")
+    cdesc = psycopg2.connect(**params_db)
     curs = cdesc.cursor()
-
-    requete_modele = "SELECT (pgn, id_blanc, id_noir, joueur_jouant) FROM games WHERE id_partie = {0};"
+    requete_modele = "SELECT pgn, id_blanc, id_noir, joueur_jouant FROM games WHERE id_partie = {0};"
     req = requete_modele.format(str(game_id))
+
     curs.execute(req)
-    l = curs.fetchall()
-    if(len(l) == 0):
-        await client.send_message(msg.channel, "Identifiant de la partie non trouvé")
+    l = curs.fetchone()
+    if(l == None):
+        await msg.channel.send("Identifiant de la partie non trouvé")
         curs.close()
         cdesc.close()
         return
-    
-    elif (len(l) > 1):
-        write_log("move_bd():\t Le résultat de la requête rend plus de un message")
-    (game_pgn, id_blanc, id_noir, joueur_jouant) = l[0]
-
-    board = game_pgn.board()
-    for m in game_pgn.mainline_moves():
+    (game_pgn, id_blanc, id_noir, joueur_jouant) = l
+    board = chess.Board()
+    pgn_ = io.StringIO(game_pgn)
+    game = pgn.read_game(pgn_)
+    for m in game.mainline_moves():
         board.push(m)
 
     id_messager = msg.author.id
     id_player_to_move = id_blanc if board.turn == chess.WHITE else id_noir
     if(id_messager != id_player_to_move):
-        await client.send_message(msg.channel, "Le mauvais joueur tente de jouer")
+        await msg.channel.send("Le mauvais joueur tente de jouer")
         curs.close()
         cdesc.close()
         return
     try:
         move_played = board.push_san(move)
-        new_pgn_g = game_pgn.from_board(board)
-        new_pgn = new_pgn_game.accept(pgn.StringExporter(headers =True))
+        new_pgn_g = game.from_board(board)
+        new_pgn = new_pgn_g.accept(pgn.StringExporter(headers =True))
         if board.is_game_over(claim_draw = True):
             result = board.result(claim_draw = True)
             fin_de_partie_bd(msg, result, new_pgn, game_id, id_blanc, id_noir, cursor)
@@ -571,16 +579,16 @@ async def move_bd(msg, client):
             cursor.close()
             cdesc.close()
             return
-        requete_update = "UPDATE games SET pgn = {0}, joueur_jouant = {1} WHERE id_partie = {2};"
+        requete_update = "UPDATE games SET pgn = '{0}', joueur_jouant = '{1}' WHERE id_partie = {2};"
         req2 = requete_update.format(new_pgn, str(not joueur_jouant), game_id)
         curs.execute(req2)
-        curs.commit()
+        cdesc.commit()
         curs.close()
         cdesc.close()
     except ValueError:
-        await client.send_message(msg.channel, "Le coup est mauvais.")
+        await msg.channel.send("Le coup est mauvais.")
         curs.close()
         cdesc.close()
         return
-
+ 
 
