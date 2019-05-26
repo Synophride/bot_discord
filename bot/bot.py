@@ -106,7 +106,8 @@ dico_fonctions = {
     'challenge': e.challenge_bd,
     'accept' : e.acceptation_bd,
     'move'   : e.move_bd,
-
+    'movelist' : e.movelist_bd,
+    'show_board' : e.show_board,
     ### 3.  : Commandes spécifiques au serveur m2
     'role_me' : m2.role_me,
     'blsk'    : m2.blsk,    
