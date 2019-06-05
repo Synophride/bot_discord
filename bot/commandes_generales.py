@@ -111,3 +111,39 @@ async def choose(msg):
     choices = msg.content.split(' ', 1)[1].split('|')
     choix = random.choice(choices)
     await msg.channel.send(choix)
+
+
+def arg_parsing(content):
+    kword_list = content.split(' ')[1:]
+    for ind in range(len(kword_list)):
+        if not kword_list.startswith('-'):
+            continue
+        opt_name = 0
+
+        pass 
+    
+async def train_problems(msg):
+    embed_retour = discord.Embed(title = 'Je sais pas quoi mettre en titre')
+    # parsing des arguments : à faire plus tard. 
+    arg_l = msg.content.split(' ')
+    train_type = None
+    train_list = None
+
+    requete = 'https://api-ratp.pierre-grimaud.fr/v3/traffic'
+    res = requests.get(requete)
+    
+    if res.status_code == 200:
+        donnees = res.json()
+        problemes = donnees['result']
+        for train_type in problemes.keys():
+            for dct_ligne in problemes[train_type]:
+                id_ligne = dct_ligne['line']
+                if( dct_ligne['slug'] != 'normal' ):
+                    resume = dct_ligne['title'] + ': ' + dct_ligne['message']
+                    str_ligne = train_type[:-1] + ' ' + id_ligne
+                    embed_retour.add_field(name = str_ligne, value = resume)
+        if(len(embed_retour.fields) == 0):
+            embed_retour.add_field(name = 'BUG', value = "Aucun problème de trains n'a été trouvé. Cela est très probablement dû à un bug")
+        await msg.channel.send(embed = embed_retour)
+    else:
+        await msg.channel.send("Erreur lors de la requête")    

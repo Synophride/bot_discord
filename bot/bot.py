@@ -94,7 +94,8 @@ dico_fonctions = {
     'breakingbad':gen.bbad,
     'choose' : gen.choose,
     'qst'    : gen.qst,
-
+    'ratp'   : gen.train_problems,
+    
     ### 2.1 : commandes d'échecs «générales»
     'puzzle' : e.puzzle_chesscom, # à mettre à jour
     'soluce' : e.puzzle_solution,

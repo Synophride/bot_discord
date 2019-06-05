@@ -14,9 +14,7 @@ def init(keys):
 
 
 async def role_me(msg):
-    print(msg.guild.id)
-    print(id_serveur_m2)
-    if (msg.guild == None or msg.guild.id != id_serveur_m2):
+    if (msg.guild == None or msg.guild.id != id_serveur_m1):
         print('different guild')
         return
     
