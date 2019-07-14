@@ -57,7 +57,7 @@ def traduction(i):
 
 async def puzzle_solution(msg):
     channel_id = (msg.channel.id)
-    await msg.channel.send( "La solution était : " + pgn_dico[channel_id] )
+    await msg.channel.send( "La solution était : ||" + pgn_dico[channel_id] + '||' )
 
 # TODO : mettre à jour 
 async def puzzle_chesscom(msg):
