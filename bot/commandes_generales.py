@@ -147,3 +147,30 @@ async def train_problems(msg):
         await msg.channel.send(embed = embed_retour)
     else:
         await msg.channel.send("Erreur lors de la requête")    
+
+
+def is_int(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+async def http(msg):
+    m = msg.content
+    split = m.split(' ')
+    codename = ""
+    if(len(split) == 1):
+        codename = "400"
+    else:
+        codename = split[1]
+    if(not is_int(codename)):
+        codename = "400"
+        
+    url_image = "https://http.cat/" + codename + ".jpg"
+    embed  = discord.Embed(title="Code http", colour = 0xFF0000)
+    embed.set_image(url=url_image)
+    await msg.channel.send(embed = embed)
+    
+    
+    

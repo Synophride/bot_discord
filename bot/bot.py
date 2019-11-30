@@ -41,7 +41,7 @@ m2.init(keys)
 gen.init(keys)
 
 async def do_nothing(msg):
-    print("NE FAIT RIEN")
+    pass
 
 #######
 ##
@@ -63,6 +63,7 @@ descripteur_commandes = {
     'lichess': 'Affiche les elos sur le site lichess.org du pseudo donné en paramètre',
     'liembed': 'Affiche les elos sur le site lichess.org du pseudo donné en paramètre (un peu plus proprement que lichess)',
     #chesscom pas encore fonctionnel
+    'http' : "Explication d'un code http donné en paramètre"
 }
 
 descripteur_commandes_m2 = {
@@ -95,6 +96,7 @@ dico_fonctions = {
     'choose' : gen.choose,
     'qst'    : gen.qst,
     'ratp'   : gen.train_problems,
+    'http'   : gen.http, 
     
     ### 2.1 : commandes d'échecs «générales»
     'puzzle' : e.puzzle_chesscom, # à mettre à jour
@@ -135,6 +137,14 @@ async def on_ready():
     for i in client.guilds:
         print("\t", i)
 
+
+@client.event
+async def on_message_edit(old, new):
+    pass
+
+@client.event
+async def on_message_delete(msg):
+    pass
 
 @client.event
 async def on_message(msg):
