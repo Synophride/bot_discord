@@ -68,7 +68,7 @@ descripteur_commandes = {
 
 descripteur_commandes_m2 = {
     'role_me' : 'Donne le rôle en paramètre',
-    'blsk' : 'Affiche un fait peu connu du public sur Thibaut Balabonski'
+    'blsk' : 'Affiche un fait à propos de Thibaut Balabonski'
 }
 
 
@@ -115,7 +115,6 @@ dico_fonctions = {
     'role_me' : m2.role_me,
     'blsk'    : m2.blsk,    
 }
-
 
 ###################################
 # Initialisation des variables

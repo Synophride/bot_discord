@@ -273,7 +273,7 @@ async def acceptation_bd(msg):
     id_acceptant = msg.author.id
     contents = msg.content.split(' ')
 
-    if(len(contents) ==1):
+    if(len(contents) == 1):
         await msg.channel.send("Erreur : L'identifiant de la partie n'a pas été donné")
         return
 
@@ -296,6 +296,7 @@ async def acceptation_bd(msg):
 
     curs.execute(req)
     res_tuple = curs.fetchone()
+    
     if(res_tuple == None):
         await msg.channel.send("Identifiant de la partie non trouvé")
         return
@@ -305,7 +306,7 @@ async def acceptation_bd(msg):
     id_white = idj1
     nom_white = name_j1
     
-    id_black = msg.author.id
+    id_black = str(msg.author.id)
     nom_black = str(msg.author)
     
     if(random.random() < 0.5):
@@ -315,12 +316,12 @@ async def acceptation_bd(msg):
         id_black = idj1
         nom_black = name_j1
 
-    pgn_game = pgn.Game() # todo : mettre 
+    pgn_game = pgn.Game() 
 
     requete_deletion_challenge = "DELETE FROM challenges WHERE id_challenge = {0};"
     requete_ajout_games = "INSERT INTO games (pgn, id_blanc, id_noir, id_partie, nom_blanc, nom_noir) VALUES ('{0}', '{1}', '{2}', {3}, '{4}', '{5}');"
 
-    requete_del = requete_deletion_challenge.format(idpartie)
+    requete_del   = requete_deletion_challenge.format(idpartie)
     requete_ajout = requete_ajout_games.format(pgn_game, id_white, id_black, idpartie, nom_white, nom_black)
 
     curs.execute(requete_del)

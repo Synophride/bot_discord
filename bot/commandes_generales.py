@@ -32,13 +32,8 @@ async def qst(msg):
     await msg.channel.send( random.choice(answ))
     
 async def status(msg):
-    chan = msg.channel
-    s = msg.content
-    if s :
-        await msg.channel.send('En ligne')
-    else :
-        await msg.channel.send('Hors ligne')
-        
+    await msg.channel.send('En ligne')
+
 async def codeblock(msg):
     str_to_write = msg.content.split(' ', 1)[1] 
     await msg.channel.send( "```\n" + str_to_write + "```")
@@ -88,13 +83,6 @@ async def norris(msg):
     str_sent= res['value']['joke'].replace('&quot;', '"')
     await msg.channel.send( str_sent)
 
-
-### Renvoie une blague bordi au hasard
-async def bordi(msg):
-    requete = 'http://api.icndb.com/jokes/random?firstName=Kevin&amplast&Name=Norris'
-    res = requests.get(requete).json()
-    await msg.channel.send( res['value']['joke'].replace('Norris', 'Bordi'))
-
 ### Renvoie un embed contenant une citation de Breaking Bad
 async def bbad(msg):
     requete = 'https://breaking-bad-quotes.herokuapp.com/v1/quotes/'
@@ -113,23 +101,15 @@ async def choose(msg):
     await msg.channel.send(choix)
 
 
-def arg_parsing(content):
-    kword_list = content.split(' ')[1:]
-    for ind in range(len(kword_list)):
-        if not kword_list.startswith('-'):
-            continue
-        opt_name = 0
-
-        pass 
     
 async def train_problems(msg):
-    embed_retour = discord.Embed(title = 'Je sais pas quoi mettre en titre')
+    embed_retour = discord.Embed(title = 'Problèmes sur les lignes de la RATP (PAS LES TRANSILIENS ET LES RER C/D/E)')
     # parsing des arguments : à faire plus tard. 
     arg_l = msg.content.split(' ')
     train_type = None
     train_list = None
 
-    requete = 'https://api-ratp.pierre-grimaud.fr/v3/traffic'
+    requete = 'https://api-ratp.pierre-grimaud.fr/v4/traffic'
     res = requests.get(requete)
     
     if res.status_code == 200:
